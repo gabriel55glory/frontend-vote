@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Vote Nigeria school project backend",
-  "main": "/index.js",
+  "main": "backend/index.js",
   "scripts": {
     "start": "node backend/index.js",
     "dev": "node backend/index.js",
