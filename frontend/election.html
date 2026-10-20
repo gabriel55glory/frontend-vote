@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Election — Vote Nigeria</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    .container { max-width: 880px; }
+    .type-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 700px) { .type-grid { grid-template-columns: 1fr; } }
+    .type-card { background: #fff; border: 2px solid var(--line); border-radius: 14px; padding: 24px; text-align: center; cursor: pointer; transition: all .18s; }
+    .type-card:hover { border-color: var(--green); transform: translateY(-3px); }
+    .type-card.selected { border-color: var(--green); background: rgba(0,135,81,.05); }
+    .type-card .icon { font-size: 2rem; margin-bottom: 8px; }
+    .type-card h4 { margin-bottom: 4px; }
+    .type-card p { font-size: .82rem; color: var(--muted); }
+
+    .candidate-list { display: grid; gap: 14px; }
+    .candidate-row { display: flex; align-items: center; gap: 16px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px; transition: transform .14s; }
+    .candidate-row:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+    .candidate-row img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; }
+    .candidate-row .info { flex: 1; }
+    .candidate-row .info h4 { margin-bottom: 2px; }
+    .candidate-row .info p { font-size: .85rem; color: var(--muted); }
+    .candidate-row.selected { border-color: var(--green); background: rgba(0,135,81,.06); }
+    .election-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+    .election-header h2 { font-size: 1.5rem; }
+    .empty { text-align: center; padding: 40px; color: var(--muted); }
+    .already-voted { background: #e8f5ee; border: 1px solid #bfe3cf; color: var(--green-d); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 20px; }
+    .already-voted .big { font-size: 2rem; margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <div id="navbar"></div>
+
+  <div class="container">
+    <div id="voterBar" class="card mb-4" style="display:none">
+      <div class="flex between items-center" style="flex-wrap:wrap;gap:10px">
+        <div><b id="vName"></b> — <span class="muted" id="vLoc"></span></div>
+        <span class="tag tag-green" id="vPhone"></span>
+      </div>
+    </div>
+
+    <h1 class="mb-4">Vote in an election</h1>
+
+    <div id="noElectionsMessage" class="card center muted mb-4" style="display:none">No available elections</div>\n\n    <div id="typeSection" style="display:none">
+      <p class="muted mb-2">Choose the type of election you want to vote in:</p>
+      <div class="type-grid">
+        <div class="type-card" data-type="president">
+          <div class="icon">🏛️</div>
+          <h4>Presidential</h4>
+          <p>Vote for the President of Nigeria</p>
+        </div>
+        <div class="type-card" data-type="governor">
+          <div class="icon">🏙️</div>
+          <h4>Governorship</h4>
+          <p>Vote for your state's governor</p>
+        </div>
+        <div class="type-card" data-type="lga">
+          <div class="icon">🏘️</div>
+          <h4>Local Government</h4>
+          <p>Vote for your LGA chairman</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="electionsSection" style="display:none">
+      <div class="election-header">
+        <h2 id="typeTitle">Elections</h2>
+        <button class="btn btn-secondary btn-sm" id="backToTypes">← Back</button>
+      </div>
+      <div id="electionsList" class="candidate-list"></div>
+    </div>
+
+    <div id="voteSection" style="display:none">
+      <div class="election-header">
+        <div>
+          <h2 id="electionTitle"></h2>
+          <p class="muted" id="electionMeta"></p>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="backToElections">← Back</button>
+      </div>
+      <div id="alreadyVoted" class="already-voted" style="display:none">
+        <div class="big">✓</div>
+        <h3>You've already voted in this election</h3>
+        <p>One voter, one vote. Thank you for participating.</p>
+      </div>
+      <div id="candidatesList" class="candidate-list"></div>
+      <div class="mt-6 center">
+        <button class="btn btn-lg" id="castVoteBtn" disabled>Cast my vote</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vote confirmation modal -->
+  <div class="modal-overlay" id="voteModal">
+    <div class="modal">
+      <h3>Confirm your vote</h3>
+      <p class="muted text-sm mb-4">You can only vote once. Please confirm:</p>
+      <div class="modal-row"><span>Candidate</span><span id="vm-cand"></span></div>
+      <div class="modal-row"><span>Party</span><span id="vm-party"></span></div>
+      <div class="modal-row"><span>Election</span><span id="vm-elec"></span></div>
+      <div class="actions">
+        <button class="btn btn-secondary" onclick="VN.hideModal('voteModal')">Cancel</button>
+        <button class="btn" id="vm-confirm" style="flex:1">Confirm vote</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    VN.renderNavbar('election.html');
+    let voter = null, selectedType = null, currentElection = null, selectedCandidate = null;
+
+    (async () => {
+      voter = await VN.requireVoter('register.html');
+      if (!voter) return;
+      document.getElementById('voterBar').style.display = 'block';
+      document.getElementById('vName').textContent = voter.full_name;
+      document.getElementById('vLoc').textContent = `${voter.state} — ${voter.lga}`;
+      document.getElementById('vPhone').textContent = voter.phone;
+      const response = await VN.api('/api/elections');
+      const elections = response.elections || [];
+      if (elections.length) {
+        document.getElementById('typeSection').style.display = 'block';
+        document.getElementById('noElectionsMessage').style.display = 'none';
+      } else {
+        document.getElementById('typeSection').style.display = 'none';
+        document.getElementById('noElectionsMessage').style.display = 'block';
+      }
+    })();
+
+    document.querySelectorAll('.type-card').forEach(card => {
+      card.onclick = () => {
+        selectedType = card.dataset.type;
+        document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        setTimeout(() => loadElections(), 250);
+      };
+    });
+
+    async function loadElections() {
+      const titles = { president: 'Presidential Elections', governor: 'Governorship Elections', lga: 'Local Government Elections' };
+      document.getElementById('typeSection').style.display = 'none';
+      document.getElementById('electionsSection').style.display = 'block';
+      document.getElementById('voteSection').style.display = 'none';
+      document.getElementById('typeTitle').textContent = titles[selectedType];
+
+      const { elections } = await VN.api('/api/elections');
+      const list = (elections || []).filter(e => e.type === selectedType);
+      const el = document.getElementById('electionsList');
+      if (!list.length) {
+        el.innerHTML = '<div class="empty">No available elections</div>';
+        return;
+      }
+      el.innerHTML = list.map(e => `
+        <div class="candidate-row" data-id="${e.id}" style="cursor:pointer">
+          <div class="info">
+            <h4>${e.title}</h4>
+            <p>${e.type === 'governor' ? e.state + ' State' : e.type === 'lga' ? e.lga + ' LGA' : 'Nationwide'} • status: ongoing</p>
+          </div>
+          <button class="btn btn-sm">Open ballot →</button>
+        </div>`).join('');
+      el.querySelectorAll('.candidate-row').forEach(row => {
+        row.onclick = () => openElection(+row.dataset.id);
+      });
+    }
+
+    document.getElementById('backToTypes').onclick = () => {
+      document.getElementById('typeSection').style.display = 'block';
+      document.getElementById('electionsSection').style.display = 'none';
+      document.getElementById('voteSection').style.display = 'none';
+    };
+    document.getElementById('backToElections').onclick = loadElections;
+
+    async function openElection(id) {
+      const data = await VN.api(`/api/elections/${id}`);
+      if (data.error) { VN.toast(data.error); return; }
+      currentElection = data.election;
+      document.getElementById('electionsSection').style.display = 'none';
+      document.getElementById('voteSection').style.display = 'block';
+      document.getElementById('electionTitle').textContent = data.election.title;
+      document.getElementById('electionMeta').textContent =
+        data.election.type === 'governor' ? data.election.state + ' State' :
+        data.election.type === 'lga' ? data.election.lga + ' LGA' : 'Nationwide';
+
+      if (data.voted) {
+        document.getElementById('alreadyVoted').style.display = 'block';
+        document.getElementById('candidatesList').style.display = 'none';
+        document.getElementById('castVoteBtn').style.display = 'none';
+        return;
+      }
+      document.getElementById('alreadyVoted').style.display = 'none';
+      document.getElementById('candidatesList').style.display = 'grid';
+      document.getElementById('castVoteBtn').style.display = 'inline-flex';
+
+      const list = document.getElementById('candidatesList');
+      list.innerHTML = data.candidates.map(c => `
+        <div class="candidate-row" data-id="${c.id}" style="cursor:pointer">
+          <img src="${c.logo_url || 'https://images.pexels.com/photos/3777943/pexels-photo-3777943.jpeg?auto=compress&cs=tinysrgb&h=200&w=200'}" alt="${c.name}" />
+          <div class="info">
+            <h4>${c.name}</h4>
+            <p>${c.party}</p>
+          </div>
+          <span class="tag">${c.votes} votes</span>
+        </div>`).join('');
+      list.querySelectorAll('.candidate-row').forEach(row => {
+        row.onclick = () => {
+          list.querySelectorAll('.candidate-row').forEach(r => r.classList.remove('selected'));
+          row.classList.add('selected');
+          selectedCandidate = +row.dataset.id;
+          const cand = data.candidates.find(c => c.id === selectedCandidate);
+          document.getElementById('castVoteBtn').disabled = false;
+          document.getElementById('castVoteBtn').textContent = `Vote for ${cand.name}`;
+        };
+      });
+    }
+
+    document.getElementById('castVoteBtn').onclick = () => {
+      if (!selectedCandidate) return;
+      const cand = [...document.querySelectorAll('.candidate-row')].find(r => +r.dataset.id === selectedCandidate);
+      document.getElementById('vm-cand').textContent = cand.querySelector('h4').textContent;
+      document.getElementById('vm-party').textContent = cand.querySelector('p').textContent;
+      document.getElementById('vm-elec').textContent = currentElection.title;
+      VN.showModal('voteModal');
+    };
+
+    document.getElementById('vm-confirm').onclick = async () => {
+      const r = await VN.api(`/api/elections/${currentElection.id}/vote`, {
+        method: 'POST', body: JSON.stringify({ candidateId: selectedCandidate })
+      });
+      if (r.error) { VN.toast(r.error); return; }
+      VN.hideModal('voteModal');
+      if (r.ok) { VN.toast('Vote cast successfully!'); setTimeout(() => openElection(currentElection.id), 800); }
+      else VN.toast(r.message);
+    };
+  </script>
+</body>
+</html>

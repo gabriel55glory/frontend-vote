@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Results — Vote Nigeria</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    .container { max-width: 980px; }
+    .view-toggle { display: inline-flex; background: var(--bg); border-radius: 10px; padding: 4px; margin-bottom: 20px; }
+    .view-toggle button { padding: 8px 18px; border-radius: 8px; background: transparent; color: var(--muted); font-weight: 600; }
+    .view-toggle button.active { background: #fff; color: var(--green); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .result-card { margin-bottom: 22px; }
+    .result-card .head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    .result-card h3 { font-size: 1.2rem; }
+    .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .bar-row .name { width: 180px; font-size: .9rem; }
+    .bar-row .bar-wrap { flex: 1; background: var(--bg); border-radius: 8px; height: 28px; overflow: hidden; position: relative; }
+    .bar-row .bar { height: 100%; border-radius: 8px; transition: width .6s ease; display: flex; align-items: center; padding-left: 10px; color: #fff; font-size: .82rem; font-weight: 600; }
+    .bar-row .votes { width: 70px; text-align: right; font-weight: 600; font-size: .9rem; }
+    .table-view table { width: 100%; border-collapse: collapse; }
+    .table-view th, .table-view td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); font-size: .92rem; }
+    .table-view th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: .78rem; letter-spacing: .5px; }
+    .table-view tr.winner { background: rgba(0,135,81,.06); }
+    .table-view tr.winner td:first-child { font-weight: 700; }
+    .winner-tag { display: inline-block; background: var(--green); color: #fff; padding: 2px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700; }
+    .scope-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    .scope-tabs button { padding: 8px 16px; border-radius: 20px; background: #fff; border: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+    .scope-tabs button.active { background: var(--green); color: #fff; border-color: var(--green); }
+    .cand-thumb { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 8px; }
+  </style>
+</head>
+<body>
+  <div id="navbar"></div>
+
+  <div class="container">
+    <h1 class="mb-2">Election results</h1>
+    <p class="muted mb-4">Live results across all elections. Toggle between bar chart and table view.</p>
+
+    <div class="scope-tabs" id="scopeTabs">
+      <button class="active" data-scope="all">All elections</button>
+      <button data-scope="president">Presidential (by state)</button>
+      <button data-scope="governor">Governorship (by LGA)</button>
+      <button data-scope="lga">LGA</button>
+    </div>
+
+    <div class="view-toggle">
+      <button class="active" id="viewBar">Bar chart</button>
+      <button id="viewTable">Table</button>
+    </div>
+
+    <div id="resultsContainer"></div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    VN.renderNavbar('results.html');
+    let viewMode = 'bar';
+    let scope = 'all';
+    let allResults = [];
+
+    const partyColors = ['#008751', '#1d4ed8', '#f39c12', '#c0392b', '#7e57c2', '#00acc1', '#5d4037'];
+
+    (async () => {
+      const { results } = await VN.api('/api/elections/results/all');
+      allResults = results || [];
+      render();
+    })();
+
+    document.getElementById('viewBar').onclick = () => { viewMode = 'bar'; updateToggle(); render(); };
+    document.getElementById('viewTable').onclick = () => { viewMode = 'table'; updateToggle(); render(); };
+    function updateToggle() {
+      document.getElementById('viewBar').classList.toggle('active', viewMode === 'bar');
+      document.getElementById('viewTable').classList.toggle('active', viewMode === 'table');
+    }
+
+    document.querySelectorAll('#scopeTabs button').forEach(b => {
+      b.onclick = () => {
+        scope = b.dataset.scope;
+        document.querySelectorAll('#scopeTabs button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        render();
+      };
+    });
+
+    function render() {
+      let list = allResults;
+      if (scope !== 'all') list = allResults.filter(r => r.election.type === scope);
+      const c = document.getElementById('resultsContainer');
+      if (!list.length) { c.innerHTML = '<div class="card center muted">No matching elections found</div>'; return; }
+
+      c.innerHTML = list.map(r => {
+        const max = Math.max(1, ...r.candidates.map(c => c.votes));
+        const winner = r.candidates[0];
+        const scopeLabel = r.election.type === 'president' ? 'Nationwide' :
+                           r.election.type === 'governor' ? r.election.state + ' State' :
+                           r.election.lga + ' LGA';
+        if (viewMode === 'bar') {
+          return `
+            <div class="card result-card">
+              <div class="head">
+                <div>
+                  <h3>${r.election.title}</h3>
+                  <p class="muted text-sm">${scopeLabel} • ${r.total} total votes • <span class="tag ${r.election.status === 'ended' ? 'tag-ended' : 'tag-green'}">${r.election.status}</span></p>
+                </div>
+                ${r.winner && r.election.status === 'ended' ? `<span class="winner-tag">Winner: ${r.winner.name}</span>` : ''}
+              </div>
+              ${r.candidates.map((c, i) => `
+                <div class="bar-row">
+                  <div class="name">${c.name} <span class="muted">(${c.party})</span></div>
+                  <div class="bar-wrap">
+                    <div class="bar" style="width:${(c.votes / max) * 100}%; background:${partyColors[i % partyColors.length]}">${c.votes > max * 0.15 ? c.votes : ''}</div>
+                  </div>
+                  <div class="votes">${c.votes}</div>
+                </div>`).join('')}
+            </div>`;
+        }
+        return `
+          <div class="card result-card">
+            <div class="head">
+              <div>
+                <h3>${r.election.title}</h3>
+                <p class="muted text-sm">${scopeLabel} • ${r.total} total votes • <span class="tag ${r.election.status === 'ended' ? 'tag-ended' : 'tag-green'}">${r.election.status}</span></p>
+              </div>
+              ${r.winner && r.election.status === 'ended' ? `<span class="winner-tag">Winner: ${r.winner.name}</span>` : ''}
+            </div>
+            <div class="table-view">
+              <table>
+                <thead><tr><th>Candidate</th><th>Party</th><th>Votes</th><th>Share</th></tr></thead>
+                <tbody>
+                ${r.candidates.map((c, i) => `
+                  <tr class="${i === 0 ? 'winner' : ''}">
+                    <td>${c.name}${i === 0 ? ' <span class="winner-tag">1st</span>' : ''}</td>
+                    <td>${c.party}</td>
+                    <td>${c.votes}</td>
+                    <td>${r.total ? ((c.votes / r.total) * 100).toFixed(1) : 0}%</td>
+                  </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>`;
+      }).join('');
+    }
+  </script>
+</body>
+</html>
