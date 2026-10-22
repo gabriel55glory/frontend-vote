@@ -1,0 +1,20 @@
+{
+  "name": "vote-nigeria-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vote Nigeria school project backend",
+  "main": "backend/index.js",
+  "scripts": {
+    "start": "node backend/index.js",
+    "dev": "node backend/index.js",
+    "init-db": "node database/init.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "pg": "^8.12.0"
+  }
+}

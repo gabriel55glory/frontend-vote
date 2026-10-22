@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Vote Nigeria</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    .dash-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 22px; max-width: 1100px; margin: 0 auto; padding: 28px 20px; }
+    @media (max-width: 860px) { .dash-grid { grid-template-columns: 1fr; } }
+    .welcome { background: linear-gradient(120deg, var(--green), var(--green-l)); color: #fff; border-radius: 16px; padding: 28px; }
+    .welcome h1 { font-size: 1.8rem; margin-bottom: 6px; }
+    .welcome p { opacity: .92; }
+    .winner-banner { background: #fff; border-left: 5px solid var(--green); padding: 14px 18px; border-radius: 10px; margin-bottom: 18px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    .winner-banner .label { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .winner-banner .name { font-weight: 700; font-size: 1.1rem; }
+    .winner-banner .meta { color: var(--muted); font-size: .88rem; }
+
+    /* WhatsApp-style chat */
+    .chat-card { padding: 0; overflow: hidden; display: flex; flex-direction: column; height: 540px; }
+    .chat-header { background: #075e54; color: #fff; padding: 14px 18px; display: flex; align-items: center; gap: 12px; }
+    .chat-header .avatar { width: 40px; height: 40px; border-radius: 50%; background: #fff; color: #075e54; display: grid; place-items: center; font-weight: 700; }
+    .chat-header .meta { flex: 1; }
+    .chat-header .meta h4 { font-size: 1rem; }
+    .chat-header .meta p { font-size: .78rem; opacity: .85; }
+    .chat-body { flex: 1; overflow-y: auto; padding: 18px; background: #e5ddd5; background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="1" fill="%23cfcabd"/></svg>'); }
+    .bubble { max-width: 75%; padding: 9px 13px; border-radius: 10px; margin-bottom: 8px; font-size: .92rem; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,.1); word-wrap: break-word; }
+    .bubble.voter { background: #dcf8c6; margin-left: auto; }
+    .bubble.admin { background: #fff; }
+    .bubble .time { font-size: .68rem; color: #667781; text-align: right; margin-top: 2px; }
+    .chat-input { display: flex; gap: 8px; padding: 10px; background: #f0f0f0; }
+    .chat-input input { flex: 1; border: none; border-radius: 22px; padding: 10px 16px; background: #fff; }
+    .chat-input button { width: 44px; height: 44px; border-radius: 50%; background: var(--green); color: #fff; font-size: 1.2rem; display: grid; place-items: center; }
+    .quick-actions { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; }
+    .qa { background: #fff; border-radius: 14px; padding: 20px; border: 1px solid var(--line); transition: transform .15s; text-align: center; }
+    .qa:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,.08); }
+    .qa .icon { font-size: 1.6rem; margin-bottom: 8px; }
+    .qa h4 { font-size: 1rem; margin-bottom: 4px; }
+    .qa p { font-size: .82rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="navbar"></div>
+
+  <div class="dash-grid">
+    <div>
+      <div class="welcome mb-4">
+        <h1 id="voterName">Welcome</h1>
+        <p id="voterMeta" class="muted" style="color:rgba(255,255,255,.85)">Loading…</p>
+        <div class="flex gap-2 mt-4" style="flex-wrap:wrap">
+          <a href="election.html" class="btn btn-secondary">Go to election</a>
+          <button class="btn btn-secondary" id="changePhoneBtn">Change phone number</button>
+          <button class="btn btn-danger" id="logoutBtn">Log out</button>
+        </div>
+      </div>
+
+      <div id="winnersBox"></div>
+
+      <div class="card mt-4">
+        <h3 class="mb-4">Quick actions</h3>
+        <div class="quick-actions">
+          <a href="election.html" class="qa"><div class="icon">🗳️</div><h4>Vote</h4><p>Cast your ballot</p></a>
+          <a href="results.html" class="qa"><div class="icon">📊</div><h4>Results</h4><p>Live tally</p></a>
+          <a href="nigeria-today.html" class="qa"><div class="icon">📰</div><h4>News</h4><p>Nigeria Today</p></a>
+          <a href="ussd.html" class="qa"><div class="icon">📡</div><h4>USSD</h4><p>Dial *347#</p></a>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card chat-card">
+        <div class="chat-header">
+          <div class="avatar">S</div>
+          <div class="meta"><h4>Vote Nigeria Support</h4><p>online</p></div>
+        </div>
+        <div class="chat-body" id="chatBody"></div>
+        <div class="chat-input">
+          <input id="msgInput" placeholder="Type a message" />
+          <button id="sendBtn">➤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change phone modal -->
+  <div class="modal-overlay" id="changeModal">
+    <div class="modal">
+      <h3>Change phone number</h3>
+      <p class="muted text-sm mb-4">You can switch to the other phone number linked to your NIN.</p>
+      <div class="modal-row"><span>Current number</span><span id="cp-current"></span></div>
+      <div class="field mt-4">
+        <label>New phone number</label>
+        <input id="cp-new" placeholder="Enter the other number linked to your NIN" />
+      </div>
+      <div class="card" style="background:#fff3f3;border:1px solid #f3c3c3;padding:12px;font-size:.88rem;color:#7a2a2a;margin-bottom:14px">
+        <b>Warning:</b> If you have voted in an election that is still ongoing, those votes will be cancelled. You will be logged out and must register again with the new number.
+      </div>
+      <div class="actions">
+        <button class="btn btn-secondary" onclick="VN.hideModal('changeModal')">Cancel</button>
+        <button class="btn btn-danger" id="cp-confirm" style="flex:1">Change & log out</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    VN.renderNavbar('dashboard.html');
+    let voter = null;
+
+    (async () => {
+      voter = await VN.requireVoter('index.html');
+      if (!voter) return;
+      document.getElementById('voterName').textContent = `Welcome, ${voter.full_name}`;
+      document.getElementById('voterMeta').textContent = `${voter.state} State — ${voter.lga} LGA • ${voter.phone}`;
+      document.getElementById('cp-current').textContent = voter.phone;
+
+      // Load winners of ended elections
+      const { results } = await VN.api('/api/elections/results/all');
+      const ended = (results || []).filter(r => r.election.status === 'ended' && r.winner);
+      const box = document.getElementById('winnersBox');
+      if (ended.length) {
+        box.innerHTML = ended.map(r => `
+          <div class="winner-banner">
+            <div class="label">Winner — ${r.election.title}</div>
+            <div class="name">${r.winner.name} (${r.winner.party})</div>
+            <div class="meta">${r.winner.votes} votes</div>
+          </div>`).join('');
+      }
+
+      await loadChat();
+    })();
+
+    async function loadChat() {
+      const { messages } = await VN.api('/api/support');
+      const body = document.getElementById('chatBody');
+      body.innerHTML = (messages || []).map(m => {
+        const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `<div class="bubble ${m.sender === 'voter' ? 'voter' : 'admin'}">${escapeHtml(m.body)}<div class="time">${time}</div></div>`;
+      }).join('');
+      body.scrollTop = body.scrollHeight;
+    }
+    function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+
+    document.getElementById('sendBtn').onclick = sendMsg;
+    document.getElementById('msgInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
+    async function sendMsg() {
+      const input = document.getElementById('msgInput');
+      const body = input.value.trim();
+      if (!body) return;
+      input.value = '';
+      const r = await VN.api('/api/support', { method: 'POST', body: JSON.stringify({ body }) });
+      if (r.error) return VN.toast(r.error);
+      await loadChat();
+    }
+
+    document.getElementById('changePhoneBtn').onclick = () => VN.showModal('changeModal');
+    document.getElementById('cp-confirm').onclick = async () => {
+      const newPhone = document.getElementById('cp-new').value.trim();
+      if (!newPhone) return VN.toast('Enter the new number');
+      const r = await VN.api('/api/auth/change-phone', {
+        method: 'POST', body: JSON.stringify({ oldPhone: voter.phone, newPhone })
+      });
+      if (r.error) return VN.toast(r.error);
+      if (!r.ok) return VN.toast(r.message);
+      VN.hideModal('changeModal');
+      VN.toast(`${r.cancelledVotes} vote(s) cancelled. Logging out…`);
+      setTimeout(() => { window.location.href = 'register.html'; }, 1600);
+    };
+
+    document.getElementById('logoutBtn').onclick = async () => {
+      await VN.api('/api/auth/logout', { method: 'POST' });
+      window.location.href = 'index.html';
+    };
+  </script>
+</body>
+</html>

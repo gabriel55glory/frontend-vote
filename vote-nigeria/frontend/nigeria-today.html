@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nigeria Today — Vote Nigeria</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    .container { max-width: 1100px; }
+    .news-hero { position: relative; border-radius: 18px; overflow: hidden; margin-bottom: 24px; min-height: 360px; color: #fff; }
+    .news-hero img { width: 100%; height: 360px; object-fit: cover; }
+    .news-hero .overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,.1)); padding: 30px; display: flex; flex-direction: column; justify-content: flex-end; }
+    .news-hero h2 { font-size: 1.8rem; margin-bottom: 6px; }
+    .news-hero p { opacity: .9; }
+    .category-bar { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 18px; }
+    .category-bar button { white-space: nowrap; padding: 8px 18px; border-radius: 20px; background: #fff; border: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+    .category-bar button.active { background: var(--green); color: #fff; border-color: var(--green); }
+    .news-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+    @media (max-width: 860px) { .news-grid { grid-template-columns: 1fr; } }
+    .news-card { background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); cursor: pointer; transition: transform .16s, box-shadow .16s; }
+    .news-card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,.08); }
+    .news-card img { width: 100%; height: 180px; object-fit: cover; }
+    .news-card .body { padding: 16px; }
+    .news-card .cat { font-size: .72rem; color: var(--green); font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+    .news-card h4 { margin: 6px 0; font-size: 1.05rem; line-height: 1.3; }
+    .news-card p { font-size: .86rem; color: var(--muted); }
+
+    /* Full story modal */
+    .story-modal { max-width: 720px; }
+    .story-modal img { width: 100%; border-radius: 12px; margin-bottom: 16px; max-height: 360px; object-fit: cover; }
+    .story-modal .cat { font-size: .75rem; color: var(--green); font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+    .story-modal h2 { font-size: 1.6rem; margin: 8px 0; }
+    .story-modal .sub { color: var(--muted); margin-bottom: 16px; font-size: .95rem; }
+    .story-modal .story-body { line-height: 1.7; color: #2a3530; }
+    .story-modal .close { float: right; background: var(--bg); width: 36px; height: 36px; border-radius: 50%; font-size: 1.1rem; }
+  </style>
+</head>
+<body>
+  <div id="navbar"></div>
+
+  <div class="container">
+    <h1 class="mb-2">Nigeria Today</h1>
+    <p class="muted mb-4">The latest news from across the country.</p>
+
+    <div class="category-bar" id="catBar"></div>
+    <div id="heroBox"></div>
+    <div class="news-grid" id="newsGrid"></div>
+  </div>
+
+  <div class="modal-overlay" id="storyModal">
+    <div class="modal story-modal">
+      <button class="close" onclick="VN.hideModal('storyModal')">×</button>
+      <div id="storyContent"></div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    VN.renderNavbar('nigeria-today.html');
+    let allNews = [];
+    let activeCat = 'All';
+    const categories = ['All', 'Politics', 'Business', 'Security', 'Education', 'Local', 'General'];
+
+    (async () => {
+      await load();
+    })();
+
+    async function load() {
+      const { news } = await VN.api(`/api/news?category=${activeCat}`);
+      allNews = news || [];
+      renderCatBar();
+      renderHero();
+      renderGrid();
+    }
+
+    function renderCatBar() {
+      const bar = document.getElementById('catBar');
+      if (!allNews.length) { bar.innerHTML = ''; bar.style.display = 'none'; return; }
+      bar.style.display = 'flex';
+      bar.innerHTML = categories.map(c =>
+        `<button class="${c === activeCat ? 'active' : ''}" data-cat="${c}">${c}</button>`).join('');
+      document.querySelectorAll('#catBar button').forEach(b => {
+        b.onclick = () => { activeCat = b.dataset.cat; load(); };
+      });
+    }
+
+    function renderHero() {
+      const hero = allNews[0];
+      const box = document.getElementById('heroBox');
+      if (!hero) { box.innerHTML = ''; return; }
+      box.innerHTML = `
+        <div class="news-hero" data-id="${hero.id}">
+          <img src="${hero.image_url || ''}" alt="${hero.title}" />
+          <div class="overlay">
+            <span class="cat" style="color:#7ce8a8;font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.5px">${hero.category}</span>
+            <h2>${hero.title}</h2>
+            <p>${hero.subtitle || ''}</p>
+          </div>
+        </div>`;
+      box.querySelector('.news-hero').onclick = () => openStory(hero.id);
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('newsGrid');
+      if (!allNews.length) {
+        grid.innerHTML = '<div class="card center muted" style="grid-column:1/-1">No stories for today</div>';
+        return;
+      }
+      const rest = allNews.slice(1);
+      grid.innerHTML = rest.map(n => `
+        <div class="news-card" data-id="${n.id}">
+          <img src="${n.image_url || ''}" alt="${n.title}" />
+          <div class="body">
+            <span class="cat">${n.category}</span>
+            <h4>${n.title}</h4>
+            <p>${n.subtitle || ''}</p>
+          </div>
+        </div>`).join('');
+      document.querySelectorAll('.news-card').forEach(c => {
+        c.onclick = () => openStory(+c.dataset.id);
+      });
+    }
+
+    async function openStory(id) {
+      const n = allNews.find(x => x.id === id) || (await VN.api(`/api/news/${id}`)).news;
+      if (!n) return;
+      document.getElementById('storyContent').innerHTML = `
+        <img src="${n.image_url || ''}" alt="${n.title}" />
+        <span class="cat">${n.category}</span>
+        <h2>${n.title}</h2>
+        <p class="sub">${n.subtitle || ''}</p>
+        <div class="story-body">${(n.body || '').split('\n').map(p => `<p>${p}</p>`).join('')}</div>`;
+      VN.showModal('storyModal');
+    }
+  </script>
+</body>
+</html>
